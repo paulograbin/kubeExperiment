@@ -1,0 +1,35 @@
+# Build output
+build/
+target/
+*.class
+
+# IDE files
+.idea/
+*.iml
+*.iws
+*.ipr
+.vscode/
+.settings/
+.classpath
+.project
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+
+.gradle/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Test output
+test-output/
+
+# Kubernetes files
+k8s/
