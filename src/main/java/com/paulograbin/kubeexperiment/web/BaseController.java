@@ -6,6 +6,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+
+import java.text.SimpleDateFormat;
 import java.util.*;
 
 
@@ -13,10 +15,12 @@ import java.util.*;
 public class BaseController {
 
     private static final Logger log = LoggerFactory.getLogger(BaseController.class);
+    private static final SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+
 
     @GetMapping
     public Map<String, Object> home(HttpServletRequest request) {
-        log.info("Received request for home endpoint");
+        log.info("Received request for home endpoint at {}", sdf.format(Calendar.getInstance().getTime()));
 
         Map<String, Object> requestDetails = new LinkedHashMap<>();
 
