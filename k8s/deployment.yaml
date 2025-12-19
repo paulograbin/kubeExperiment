@@ -15,12 +15,17 @@ spec:
       labels:
         app: kube-experiment
     spec:
+      terminationGracePeriodSeconds: 20
       containers:
       - name: kube-experiment
         image: paulograbin/kube-experiment:latest
         ports:
         - containerPort: 8080
           name: http
+        lifecycle:
+          preStop:
+            exec:
+              command: ["/bin/sh", "-c", "sleep 10"]
         resources:
           requests:
             memory: "256Mi"
@@ -32,15 +37,14 @@ spec:
           httpGet:
             path: /actuator/health/liveness
             port: 8080
-          initialDelaySeconds: 30
-          periodSeconds: 10
+          initialDelaySeconds: 10
+          periodSeconds: 1
           timeoutSeconds: 5
           failureThreshold: 3
         readinessProbe:
           httpGet:
             path: /actuator/health/readiness
             port: 8080
-          initialDelaySeconds: 20
-          periodSeconds: 5
+          initialDelaySeconds: 10
+          periodSeconds: 1
           timeoutSeconds: 3
-
