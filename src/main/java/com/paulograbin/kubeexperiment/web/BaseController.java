@@ -7,6 +7,10 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 
+import java.io.File;
+import java.io.IOException;
+import java.nio.charset.Charset;
+import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.*;
 
@@ -19,12 +23,22 @@ public class BaseController {
 
 
     @GetMapping
-    public Map<String, Object> home(HttpServletRequest request) {
+    public Map<String, Object> home(HttpServletRequest request) throws IOException {
         log.info("Received request for home endpoint at {}", sdf.format(Calendar.getInstance().getTime()));
 
         Map<String, Object> requestDetails = new LinkedHashMap<>();
 
+        File file = new File("/etc/hostname");
+        List<String> strings = Files.readAllLines(file.toPath(), Charset.forName("UTF-8"));
+
         // Basic request information
+
+        if (strings != null && !strings.isEmpty()) {
+            requestDetails.put("pod name", strings.get(0));
+        } else {
+            requestDetails.put("pod name", "who knows");
+        }
+
         requestDetails.put("method", request.getMethod());
         requestDetails.put("requestURI", request.getRequestURI());
         requestDetails.put("requestURL", request.getRequestURL().toString());
