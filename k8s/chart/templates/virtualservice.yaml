@@ -1,0 +1,21 @@
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: {{ .Release.Name }}-virtual-service
+  namespace: {{ .Values.applications.namespace  }}
+  labels:
+    app: {{ .Release.Name }}
+spec:
+  hosts:
+  - "kube-experiment.multivac.local"
+  gateways:
+  - {{ .Release.Name }}-gateway
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: kube-experiment
+        port:
+          number: 80
