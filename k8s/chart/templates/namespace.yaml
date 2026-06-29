@@ -4,3 +4,4 @@ metadata:
   name: {{ .Values.applications.namespace }}
   labels:
     name: {{ .Values.applications.namespace }}
+    istio-injection: enabled
