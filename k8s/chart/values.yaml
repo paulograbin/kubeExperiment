@@ -9,3 +9,4 @@ backend:
       targetPort: 8080
   deployment:
     replicas: 4
+    initialDelay: 10
