@@ -1,0 +1,11 @@
+applications:
+  namespace: multivac
+backend:
+  image:
+    namespace: paulograbin
+  service:
+    ports:
+      port: 80
+      targetPort: 8080
+  deployment:
+    replicas: 4
