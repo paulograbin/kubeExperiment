@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -28,16 +28,8 @@ public class BaseController {
 
         Map<String, Object> requestDetails = new LinkedHashMap<>();
 
-        File file = new File("/etc/hostname");
-        List<String> strings = Files.readAllLines(file.toPath(), Charset.forName("UTF-8"));
-
-        // Basic request information
-
-        if (strings != null && !strings.isEmpty()) {
-            requestDetails.put("pod name", strings.get(0));
-        } else {
-            requestDetails.put("pod name", "who knows");
-        }
+        var podName = makePodName().orElse("who knows");
+        requestDetails.put("podName", podName);
 
         requestDetails.put("method", request.getMethod());
         requestDetails.put("requestURI", request.getRequestURI());
@@ -104,6 +96,25 @@ public class BaseController {
         }
 
         return requestDetails;
+    }
+
+    private static Optional<String> makePodName() {
+        File file = new File("/etc/hostname");
+
+        if (!Files.exists(file.toPath())) {
+            log.warn("Hostname file not found");
+            return Optional.empty();
+        }
+
+        try {
+            List<String> strings = Files.readAllLines(file.toPath(), StandardCharsets.UTF_8);
+
+            return Optional.of(strings.getFirst());
+        } catch (IOException e) {
+            log.warn("Could not determine pod name");
+        }
+
+        return Optional.empty();
     }
 }
 
