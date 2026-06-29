@@ -15,3 +15,12 @@ spec:
       protocol: HTTP
     hosts:
     - "kube-experiment.multivac.local"
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: kube-experiment-tls
+    hosts:
+    - "kube-experiment.multivac.local"

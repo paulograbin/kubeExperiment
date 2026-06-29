@@ -21,7 +21,23 @@ docker login
 docker push paulograbin/kube-experiment:latest
 ```
 
-## Step 2: Deploy to Kubernetes
+## Step 2: Create TLS Certificate (optional, for HTTPS)
+
+```bash
+# Generate a self-signed certificate for local/dev
+openssl req -x509 -nodes -days 365 \
+  -newkey rsa:2048 \
+  -keyout kube-experiment.key \
+  -out kube-experiment.crt \
+  -subj "/CN=kube-experiment.multivac.local"
+
+# Create the TLS secret in istio-system namespace
+kubectl create -n istio-system secret tls kube-experiment-tls \
+  --cert=kube-experiment.crt \
+  --key=kube-experiment.key
+```
+
+## Step 3: Deploy to Kubernetes
 
 Apply the manifests in the following order:
 
@@ -35,8 +51,11 @@ kubectl apply -f k8s/deployment.yaml
 # Create the service
 kubectl apply -f k8s/service.yaml
 
-# Create the ingress
-kubectl apply -f k8s/ingress.yaml
+# Create the Istio gateway
+kubectl apply -f k8s/gateway.yaml
+
+# Create the Istio virtual service
+kubectl apply -f k8s/virtualservice.yaml
 ```
 
 Or apply all at once:
@@ -45,7 +64,7 @@ Or apply all at once:
 kubectl apply -f k8s/
 ```
 
-## Step 3: Verify Deployment
+## Step 4: Verify Deployment
 
 ```bash
 # Check all resources in the multivac namespace
@@ -60,8 +79,11 @@ kubectl get pods -n multivac
 # Check service
 kubectl get svc kube-experiment -n multivac
 
-# Check ingress
-kubectl get ingress kube-experiment -n multivac
+# Check Istio gateway
+kubectl get gateway kube-experiment-gateway -n multivac
+
+# Check Istio virtual service
+kubectl get virtualservice kube-experiment -n multivac
 
 # View pod logs
 kubectl logs -n multivac -l app=kube-experiment
@@ -70,21 +92,25 @@ kubectl logs -n multivac -l app=kube-experiment
 kubectl logs -n multivac -l app=kube-experiment -f
 ```
 
-## Step 4: Access the Application
+## Step 5: Access the Application
 
-The application is exposed via Ingress at:
+The application is exposed via Istio Gateway + VirtualService at:
 - Host: `kube-experiment.multivac.local`
 
-Update your `/etc/hosts` file or DNS to point this hostname to your Kyma cluster's ingress IP.
+Update your `/etc/hosts` file or DNS to point this hostname to your Istio ingress gateway IP.
 
-Get the ingress IP:
+Get the ingress gateway IP:
 ```bash
-kubectl get ingress kube-experiment -n multivac
+kubectl get svc istio-ingressgateway -n istio-system
 ```
 
 Then access the application:
 ```bash
+# HTTP
 curl http://kube-experiment.multivac.local
+
+# HTTPS (use -k for self-signed certs)
+curl -k https://kube-experiment.multivac.local
 ```
 
 ## Health Check Endpoints
@@ -167,7 +193,12 @@ kubectl delete namespace multivac
 - **Type**: ClusterIP
 - **Port**: 80 → 8080 (targetPort)
 
-### Ingress Configuration
-- **Class**: istio (for SAP Kyma)
+### Istio Gateway Configuration
+- **Protocols**: HTTP (port 80) + HTTPS (port 443)
+- **TLS**: SIMPLE mode, credential `kube-experiment-tls`
 - **Host**: kube-experiment.multivac.local
+
+### Istio VirtualService Configuration
+- **Gateway**: kube-experiment-gateway
+- **Routing**: all traffic (`/`) → kube-experiment service on port 80
 
