@@ -16,6 +16,6 @@ spec:
         prefix: /
     route:
     - destination:
-        host: kube-experiment
+        host: kube-experiment-service
         port:
           number: 80
