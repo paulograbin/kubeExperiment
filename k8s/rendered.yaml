@@ -1,0 +1,141 @@
+---
+# Source: kube-experiment/templates/namespace.yaml
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: multivac
+  labels:
+    name: multivac
+    istio-injection: enabled
+
+---
+# Source: kube-experiment/templates/service.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-experiment-service
+  namespace: multivac
+  labels:
+    app: kube-experiment
+spec:
+  type: ClusterIP
+  selector:
+    app: kube-experiment
+  ports:
+  - port: 80
+    targetPort: 8080
+    protocol: TCP
+
+
+---
+# Source: kube-experiment/templates/deployment.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-experiment-deployment
+  namespace: multivac
+  labels:
+    app: kube-experiment
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: kube-experiment
+  template:
+    metadata:
+      labels:
+        app: kube-experiment
+    spec:
+      terminationGracePeriodSeconds: 20
+      containers:
+        - name: kube-experiment
+          image: paulograbin/kube-experiment:latest
+          ports:
+            - containerPort: 8080
+              name: http
+          lifecycle:
+            preStop:
+              exec:
+                command: [ "/bin/sh", "-c", "sleep 10" ]
+          resources:
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+          startupProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 2
+            timeoutSeconds: 5
+            failureThreshold: 15
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /actuator/health/readiness
+              port: 8080
+            periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
+
+---
+# Source: kube-experiment/templates/gateway.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: Gateway
+metadata:
+  name: kube-experiment-gateway
+  namespace: multivac
+  labels:
+    app: kube-experiment
+spec:
+  selector:
+    istio: ingressgateway
+  servers:
+  - port:
+      number: 80
+      name: http
+      protocol: HTTP
+    hosts:
+    - "kube-experiment.multivac.local"
+  - port:
+      number: 443
+      name: https
+      protocol: HTTPS
+    tls:
+      mode: SIMPLE
+      credentialName: kube-experiment-tls
+    hosts:
+    - "kube-experiment.multivac.local"
+
+---
+# Source: kube-experiment/templates/virtualservice.yaml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: kube-experiment-virtual-service
+  namespace: multivac
+  labels:
+    app: kube-experiment
+spec:
+  hosts:
+  - "kube-experiment.multivac.local"
+  gateways:
+  - kube-experiment-gateway
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: kube-experiment-service
+        port:
+          number: 80
