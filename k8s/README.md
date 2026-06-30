@@ -8,6 +8,7 @@ This directory contains Kubernetes manifests and a Helm chart for deploying the 
 - Minikube installed (using Docker driver)
 - kubectl installed
 - Helm installed
+- istioctl installed
 - Docker Hub account (username: paulograbin)
 
 ## Quick Start (Helm)
@@ -19,17 +20,22 @@ minikube start --driver=docker
 # Install Istio (if not already installed)
 istioctl install --set profile=demo -y
 
-# Deploy with Helm
+# Deploy with Helm (from the k8s/ directory)
 helm upgrade --install kube-experiment ./chart
 
 # Wait for pods to be ready
 kubectl rollout status deployment/kube-experiment-deployment -n multivac
 
+# Get the Istio ingress gateway HTTP port
+export INGRESS_PORT=$(kubectl get svc -n istio-system istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="http2")].nodePort}')
+
 # Access the app
-curl -H "Host: kube-experiment.multivac.local" http://$(minikube ip):30719/
+curl -H "Host: kube-experiment.multivac.local" http://$(minikube ip):$INGRESS_PORT/
 ```
 
 ## Build and Push Docker Image
+
+From the project root (where the Dockerfile is):
 
 ```bash
 # Build the Docker image
@@ -44,10 +50,10 @@ docker push paulograbin/kube-experiment:latest
 
 ## Deploy with Helm Chart
 
-The Helm chart is in the `chart/` directory and manages all resources:
+The Helm chart is in the `chart/` directory and manages all resources (namespace, deployment, service, gateway, virtualservice):
 
 ```bash
-# Install/upgrade
+# Install/upgrade (from the k8s/ directory)
 helm upgrade --install kube-experiment ./chart
 
 # Check status
@@ -68,22 +74,12 @@ Key values in `chart/values.yaml`:
 | `backend.service.ports.port` | `80` | Service port |
 | `backend.service.ports.targetPort` | `8080` | Container port |
 
-## Deploy with Plain Manifests
+## Deploy with Rendered Manifest
 
-Apply the manifests in order:
-
-```bash
-kubectl apply -f namespace.yaml
-kubectl apply -f deployment.yaml
-kubectl apply -f service.yaml
-kubectl apply -f gateway.yaml
-kubectl apply -f virtualservice.yaml
-```
-
-Or all at once:
+A pre-rendered `rendered.yaml` is available for applying without Helm:
 
 ```bash
-kubectl apply -f .
+kubectl apply -f rendered.yaml
 ```
 
 ## TLS Certificate (optional, for HTTPS)
@@ -106,6 +102,18 @@ kubectl create -n istio-system secret tls kube-experiment-tls \
 
 The app is exposed via Istio Gateway on the hostname `kube-experiment.multivac.local`.
 
+### Find the ingress port
+
+NodePorts can change across minikube restarts. Always look them up:
+
+```bash
+# HTTP port
+kubectl get svc -n istio-system istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="http2")].nodePort}'
+
+# HTTPS port
+kubectl get svc -n istio-system istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="https")].nodePort}'
+```
+
 ### Setup /etc/hosts
 
 Add the minikube IP to your hosts file:
@@ -117,7 +125,7 @@ echo "$(minikube ip)	kube-experiment.multivac.local" | sudo tee -a /etc/hosts
 ### Access via browser
 
 ```
-http://kube-experiment.multivac.local:30719/
+http://kube-experiment.multivac.local:<HTTP_NODEPORT>/
 ```
 
 > **Note:** You must use the hostname, not the raw IP. Istio routes based on the `Host` header — hitting the IP directly returns a 404.
@@ -125,14 +133,16 @@ http://kube-experiment.multivac.local:30719/
 ### Access via curl
 
 ```bash
+export INGRESS_PORT=$(kubectl get svc -n istio-system istio-ingressgateway -o jsonpath='{.spec.ports[?(@.name=="http2")].nodePort}')
+
 # Using hostname (requires /etc/hosts entry)
-curl http://kube-experiment.multivac.local:30719/
+curl http://kube-experiment.multivac.local:$INGRESS_PORT/
 
 # Using IP with explicit Host header
-curl -H "Host: kube-experiment.multivac.local" http://$(minikube ip):30719/
+curl -H "Host: kube-experiment.multivac.local" http://$(minikube ip):$INGRESS_PORT/
 
 # Health check
-curl http://kube-experiment.multivac.local:30719/actuator/health
+curl http://kube-experiment.multivac.local:$INGRESS_PORT/actuator/health
 ```
 
 ### Port reference
@@ -141,8 +151,8 @@ curl http://kube-experiment.multivac.local:30719/actuator/health
 |------|-------|
 | `8080` | Container (Spring Boot) |
 | `80` | ClusterIP Service |
-| `30719` | Istio ingress gateway NodePort (HTTP) |
-| `32527` | Istio ingress gateway NodePort (HTTPS) |
+| NodePort (dynamic) | Istio ingress gateway HTTP |
+| NodePort (dynamic) | Istio ingress gateway HTTPS |
 
 ## Verify Deployment
 
@@ -153,7 +163,7 @@ kubectl get all -n multivac
 # Check pods (should show 2/2 — app + istio sidecar)
 kubectl get pods -n multivac
 
-# View pod logs
+# View pod logs (specify container since istio sidecar is present)
 kubectl logs -n multivac -l app=kube-experiment -c kube-experiment
 
 # Follow logs
@@ -182,7 +192,7 @@ helm upgrade kube-experiment ./chart
 ## Updating the Application
 
 ```bash
-# Build and push new image
+# Build and push new image (from project root)
 docker build -t paulograbin/kube-experiment:latest .
 docker push paulograbin/kube-experiment:latest
 
@@ -251,6 +261,6 @@ The deployment uses three probes:
 
 ### Istio
 
-- Sidecar injection enabled via namespace label
+- Sidecar injection enabled via namespace label (`istio-injection: enabled`)
 - Gateway accepts HTTP (80) and HTTPS (443)
-- VirtualService routes all paths (`/`) to the service
+- VirtualService routes all paths (`/`) to `kube-experiment-service` on port 80
